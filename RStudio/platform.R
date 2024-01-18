@@ -1,8 +1,8 @@
-# Charger les packages nécessaires
 library(shiny)
 library(dplyr)
-library(DT)  # Pour la table interactive
-library(plotly)  # Pour le graphique interactif
+library(DT)
+library(shinydashboard)
+library(plotly)
 
 # Charger les données depuis le fichier CSV
 data <- read.csv("games.csv")
@@ -18,18 +18,46 @@ data_platform <- data_cleaned %>%
   summarise(Total_Games = n())
 
 # UI (Interface Utilisateur)
-ui_platform <- fluidPage(
-  titlePanel("Nombre total de jeux par plateforme selon l'année"),
-  
-  # Sélectionner une plateforme
-  selectInput("platform", "Sélectionnez une plateforme:",
-              choices = unique(data_cleaned$Platform)),
-  
-  # Afficher la table des données
-  DTOutput("table_platform"),
-  
-  # Afficher le graphique interactif à barres
-  plotlyOutput("bar_chart_platform")
+ui_platform <- dashboardPage(
+  dashboardHeader(title = "Nombre total de jeux par plateforme selon l'année"),
+  dashboardSidebar(
+    selectInput("platform", "Sélectionnez une plateforme:", choices = unique(data_cleaned$Platform)),
+    tags$head(
+      tags$style(
+        HTML("
+          /* Ajoutez ici vos styles personnalisés */
+          .box-primary {
+            border-top-color: #3c8dbc;
+          }
+          .box-title {
+            font-size: 18px;
+          }
+          .box-body {
+            overflow-x: auto;
+          }
+          .box-header .box-title {
+            font-size: 18px;
+          }
+        ")
+      )
+    )
+  ),
+  dashboardBody(
+    box(
+      title = "Tableau des données",
+      status = "primary",
+      solidHeader = TRUE,
+      DTOutput("table_platform"),
+      width = 12
+    ),
+    box(
+      title = "Graphique à barres",
+      status = "primary",
+      solidHeader = TRUE,
+      plotlyOutput("bar_chart_platform"),
+      width = 12
+    )
+  )
 )
 
 # Serveur
@@ -45,14 +73,13 @@ server_platform <- function(input, output) {
     datatable(filtered_data_platform(), options = list(pageLength = 5))
   })
   
-  # Créer le graphique interactif à barres avec plotly
+  # Créer le graphique à barres avec Plotly
   output$bar_chart_platform <- renderPlotly({
-    plot_ly(data_platform %>% filter(Platform == input$platform),
-            x = ~Year, y = ~Total_Games, type = 'bar', marker = list(color = ~Platform)) %>%
+    plot_ly(data_platform %>% filter(Platform == input$platform), 
+            x = ~Year, y = ~Total_Games, type = 'bar', name = input$platform) %>%
       layout(title = paste("Nombre total de jeux pour la plateforme", input$platform, "par année"),
              xaxis = list(title = "Année"),
-             yaxis = list(title = "Nombre total de jeux"),
-             showlegend = TRUE)
+             yaxis = list(title = "Nombre total de jeux"))
   })
 }
 
