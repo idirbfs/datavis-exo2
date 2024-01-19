@@ -54,7 +54,8 @@ ui <- dashboardPage(
       menuItem("Visualisation Globale", tabName = "global_tab"),
       menuItem("Scores des jeux", tabName = "score_tab"),
       menuItem("Jeux par Éditeur et Année", tabName = "publisher_year_tab"),
-      menuItem("Diagramme 3D", tabName = "scatter3d_tab")
+      menuItem("Diagramme 3D", tabName = "scatter3d_tab"),
+      menuItem("Part de marché des éditeurs", tabName = "market_share_tab")
     )
   ),
   dashboardBody(
@@ -173,14 +174,23 @@ ui <- dashboardPage(
           plotlyOutput("scatter3d_plot"),
           width = 12
         )
+      ),
+      
+      # Part de marché des éditeurs (Nouvel onglet)
+      tabItem(
+        tabName = "market_share_tab",
+        h2("Part de marché des éditeurs"),
+        box(
+          title = "Part de marché des éditeurs",
+          status = "primary",
+          solidHeader = TRUE,
+          plotlyOutput("market_share_pie_chart"),
+          width = 12
+        )
       )
     )
   )
 )
-
-    
-  
-
 
 # Serveur
 server <- function(input, output, session) {
@@ -189,12 +199,12 @@ server <- function(input, output, session) {
     data_cleaned %>%
       filter(Platform == input$platform)
   })
-
+  
   # Afficher la table interactive pour la première partie
   output$table_platform <- renderDT({
     datatable(filtered_data_platform(), options = list(pageLength = 5))
   })
-
+  
   # Créer le graphique à barres avec Plotly pour la première partie
   output$bar_chart_platform <- renderPlotly({
     plot_ly(data_platform %>% filter(Platform == input$platform),
@@ -203,18 +213,18 @@ server <- function(input, output, session) {
              xaxis = list(title = "Année"),
              yaxis = list(title = "Nombre total de jeux"))
   })
-
+  
   # Filtrer les données en fonction de l'éditeur sélectionné pour la deuxième partie
   filtered_data <- reactive({
     data %>%
       filter(Publisher == input$publisher)
   })
-
+  
   # Afficher la table interactive pour la deuxième partie
   output$table <- renderDT({
     datatable(filtered_data(), options = list(pageLength = 5))
   })
-
+  
   # Créer le graphique à barres pour la deuxième partie
   output$bar_chart <- renderPlot({
     ggplot(filtered_data(), aes(x = as.factor(Year), fill = Publisher)) +
@@ -225,17 +235,17 @@ server <- function(input, output, session) {
       theme_minimal() +
       theme(legend.position = "top", legend.title = element_blank())
   })
-
+  
   # Créer le graphique à barres groupées interactif pour les scores
   output$interactive_plot <- renderPlotly({
     plot_ly(data_cleaned, x = ~Name, y = ~Critic_Score, type = 'bar', name = 'Critic Score', marker = list(color = 'red')) %>%
-      add_trace(y = ~User_Score, name = 'User Score', marker = list(color = 'black')) %>%
+      add_trace(y = ~User_Score, name = 'User Score', marker = list(color = 'grey')) %>%
       layout(title = "Scores Critiques et Utilisateurs pour chaque jeu ",
              xaxis = list(title = "Jeux"),
              yaxis = list(title = "Score", range = c(0, 10))) %>%
       config(displayModeBar = FALSE)
   })
-
+  
   # Créer le graphique de la somme totale des jeux par plateforme
   output$total_games_plot <- renderPlotly({
     plot_ly(total_games_by_platform, y = ~Platform, x = ~Total_Games, type = 'bar', orientation = 'h',
@@ -245,7 +255,7 @@ server <- function(input, output, session) {
              yaxis = list(title = "Plateforme")) %>%
       config(displayModeBar = FALSE)
   })
-
+  
   observe({
     event_data <- event_data("plotly_click", source = "total_games_plot_click")
     if (!is.null(event_data)) {
@@ -253,11 +263,11 @@ server <- function(input, output, session) {
       updateSelectInput(session, "selected_platform", selected = selected_platform)
     }
   })
-
+  
   observe({
     filtered_data <- historical_games_by_platform %>%
       filter(Platform == input$selected_platform)
-
+    
     output$historical_games_plot <- renderPlotly({
       plot_ly(filtered_data, x = ~Year, y = ~Total_Games, type = 'scatter', mode = 'lines+markers',
               marker = list(color = rainbow(length(unique(filtered_data$Year))))) %>%
@@ -267,11 +277,11 @@ server <- function(input, output, session) {
         config(displayModeBar = FALSE)
     })
   })
-
+  
   observeEvent(input$selected_platform, {
     shinyjs::enable("total_games_plot")
   })
-
+  
   # Créer le graphique barflare
   output$barflare_plot <- renderPlotly({
     plot_ly(games_by_publisher_year,
@@ -287,12 +297,24 @@ server <- function(input, output, session) {
              height = 800,
              width = 1200)
   })
+  
   # Ajout de la logique pour le Diagramme de Dispersion 3D
   output$scatter3d_plot <- renderPlotly({
     plot_ly(data, x = ~Critic_Score, y = ~User_Score, z = ~Total_Shipped, type = 'scatter3d', mode = 'markers')
   })
+  
+  # Nouvelle logique pour la part de marché des éditeurs
+  output$market_share_pie_chart <- renderPlotly({
+    # Créer un dataframe agrégé par éditeur pour les ventes totales
+    total_sales_by_publisher <- data_cleaned %>%
+      group_by(Publisher) %>%
+      summarise(Total_Shipped = sum(Total_Shipped, na.rm = TRUE))
+    
+    # Créer le graphique à secteurs
+    plot_ly(total_sales_by_publisher, labels = ~Publisher, values = ~Total_Shipped, type = 'pie') %>%
+      layout(title = "Part de marché des éditeurs en fonction des ventes totales")
+  })
 }
-
 
 # Lancer l'application Shiny
 shinyApp(ui, server)
